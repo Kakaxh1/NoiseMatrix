@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""
+NoiseMatrix - Professional WiFi Testing Tool
+Created by Kkaxh1
+"""
+
+import os
+import sys
+import time
+
+# Add the current directory to Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Colors for terminal
+class Colors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    MAGENTA = '\033[35m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    UNDERLINE = '\033[4m'
+    BLINK = '\033[5m'
+    RESET = '\033[0m'
+
+def clear_screen():
+    """Clear terminal screen"""
+    os.system('clear' if os.name == 'posix' else 'cls')
+
+def print_banner():
+    """Print ASCII banner"""
+    banner = f"""
+{Colors.CYAN}{Colors.BOLD}
+_///     _//                              _//       _//            _//                     
+_/ _//   _//           _/                 _/ _//   _///            _//          _/         
+_// _//  _//   _//        _////    _//    _// _// _ _//   _//    _/_/ _/_/ _///   _//   _//
+_//  _// _// _//  _// _//_//     _/   _// _//  _//  _// _//  _//   _//   _//   _//  _/ _// 
+_//   _/ _//_//    _//_//  _/// _///// _//_//   _/  _//_//   _//   _//   _//   _//   _/    
+_//    _/ // _//  _// _//    _//_/        _//       _//_//   _//   _//   _//   _// _/  _// 
+_//      _//   _//    _//_// _//  _////   _//       _//  _// _///   _// _///   _//_//   _//
+{Colors.RESET}
+{Colors.YELLOW}{Colors.BOLD}                         ╔════════════════════════════╗
+                         ║  NoiseMatrix v1.0.0       ║
+                         ║  Created by Kkaxh1        ║
+                         ║  FOR EDUCATIONAL USE ONLY ║
+                         ╚════════════════════════════╝{Colors.RESET}
+    """
+    print(banner)
+
+def check_dependencies():
+    """Check if required tools are installed"""
+    required_tools = ['airodump-ng', 'mdk3', 'airmon-ng', 'iwconfig']
+    missing = []
+    
+    print(f"{Colors.YELLOW}[*] Checking dependencies...{Colors.RESET}")
+    
+    for tool in required_tools:
+        result = os.system(f'which {tool} > /dev/null 2>&1')
+        if result != 0:
+            missing.append(tool)
+        else:
+            print(f"{Colors.GREEN}[✓] {tool} found{Colors.RESET}")
+            
+    return missing
+
+def install_dependencies(missing):
+    """Install missing dependencies"""
+    print(f"\n{Colors.YELLOW}[!] Missing tools: {', '.join(missing)}{Colors.RESET}")
+    install = input(f"{Colors.CYAN}[?] Attempt to install now? (y/n): {Colors.RESET}").lower()
+    
+    if install == 'y':
+        print(f"{Colors.YELLOW}[*] Updating package list...{Colors.RESET}")
+        os.system('sudo apt-get update -qq')
+        
+        print(f"{Colors.YELLOW}[*] Installing aircrack-ng and mdk3...{Colors.RESET}")
+        os.system('sudo apt-get install -y aircrack-ng mdk3')
+        
+        # Recheck
+        missing = check_dependencies()
+        if missing:
+            print(f"{Colors.RED}[✗] Failed to install: {', '.join(missing)}{Colors.RESET}")
+            print(f"{Colors.YELLOW}[!] Please install manually: sudo apt-get install aircrack-ng mdk3{Colors.RESET}")
+            return False
+        else:
+            print(f"{Colors.GREEN}[✓] All dependencies installed successfully!{Colors.RESET}")
+            return True
+    else:
+        print(f"{Colors.RED}[✗] Dependencies required. Exiting.{Colors.RESET}")
+        return False
+
+def main():
+    """Main launcher function"""
+    clear_screen()
+    print_banner()
+    
+    # Check Python version
+    if sys.version_info < (3, 8):
+        print(f"{Colors.RED}[✗] Error: Python 3.8 or higher required!{Colors.RESET}")
+        print(f"{Colors.YELLOW}[!] Current version: {sys.version}{Colors.RESET}")
+        sys.exit(1)
+    
+    print(f"{Colors.GREEN}[✓] Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}{Colors.RESET}")
+    time.sleep(1)
+    
+    # Check dependencies
+    missing = check_dependencies()
+    
+    if missing:
+        if not install_dependencies(missing):
+            sys.exit(1)
+    
+    print(f"\n{Colors.GREEN}[✓] All systems ready!{Colors.RESET}")
+    time.sleep(1)
+    
+    # Create necessary directories
+    os.makedirs("logs", exist_ok=True)
+    os.makedirs("targets", exist_ok=True)
+    
+    # Check for root
+    if os.geteuid() != 0:
+        print(f"\n{Colors.YELLOW}[!] This tool requires root privileges!{Colors.RESET}")
+        print(f"{Colors.CYAN}[*] Re-running with sudo...{Colors.RESET}")
+        time.sleep(1)
+        os.execvp("sudo", ["sudo", "python3"] + sys.argv)
+    
+    # Import and run main
+    try:
+        print(f"{Colors.GREEN}[*] Starting NoiseMatrix...{Colors.RESET}")
+        from src.main import NoiseMatrix
+        app = NoiseMatrix()
+        app.setup()
+        app.run()
+    except ImportError as e:
+        print(f"{Colors.RED}[✗] Import error: {e}{Colors.RESET}")
+        print(f"{Colors.YELLOW}[!] Python path: {sys.path}{Colors.RESET}")
+        print(f"{Colors.YELLOW}[!] Current directory: {os.getcwd()}{Colors.RESET}")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print(f"\n{Colors.YELLOW}[!] Exiting...{Colors.RESET}")
+        sys.exit(0)
+    except Exception as e:
+        print(f"{Colors.RED}[✗] Fatal error: {e}{Colors.RESET}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
