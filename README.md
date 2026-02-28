@@ -217,7 +217,7 @@ MIT License - Educational Use Only
 
 ## Version History
 
-**v1.0.0 (2024)** – Initial stable release
+**v1.0.0 (2026)** – Initial stable release
 
 * Basic network scanning
 * Deauthentication attacks
