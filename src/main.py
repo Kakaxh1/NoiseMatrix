@@ -68,7 +68,8 @@ class NoiseMatrix:
             self._cleaned_up = False
             self._asked_monitor = False
             
-            logger.info("NoiseMatrix initialized")
+		logger.info("NoiseMatrix initialized")
+		console.print("[dim]⚡ NoiseMatrix v1.1.0 - Destruction Mode Edition[/dim]")
             
         except Exception as e:
             logger.error(f"Initialization error: {e}")
