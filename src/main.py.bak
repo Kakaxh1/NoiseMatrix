@@ -3,7 +3,7 @@
 NoiseMatrix - Main Application
 Created by Kkaxh1
 """
-from src.destruction import DestructionMode
+
 import os
 import sys
 import signal
@@ -63,7 +63,7 @@ class NoiseMatrix:
             self.running = False
             self.interface = None
             self.saved_targets = self.load_saved_targets()
-            self.scan_results = []
+            self.scan_results = []  # Store last scan results
             self.initialized = False
             self._cleaned_up = False
             self._asked_monitor = False
@@ -80,6 +80,7 @@ class NoiseMatrix:
         targets = []
         targets_file = "targets/saved_targets.json"
         
+        # Create targets directory if it doesn't exist
         os.makedirs("targets", exist_ok=True)
         
         if os.path.exists(targets_file):
@@ -98,19 +99,16 @@ class NoiseMatrix:
         targets_file = "targets/saved_targets.json"
         os.makedirs("targets", exist_ok=True)
         
-        # Add timestamp if not present
-        if 'saved_at' not in target:
-            target['saved_at'] = datetime.now().isoformat()
+        # Add timestamp
+        target['saved_at'] = datetime.now().isoformat()
         
         # Check if target already exists
-        found = False
         for existing in self.saved_targets:
             if existing.get('bssid') == target.get('bssid'):
+                # Update existing
                 existing.update(target)
-                found = True
                 break
-        
-        if not found:
+        else:
             self.saved_targets.append(target)
             
         # Keep only last 50 targets
@@ -122,38 +120,42 @@ class NoiseMatrix:
                 json.dump({'targets': self.saved_targets}, f, indent=2)
             console.print("[green]✓ Target saved successfully[/green]")
             logger.info(f"Target saved: {target.get('bssid')}")
-            return True
         except Exception as e:
             logger.error(f"Error saving target: {e}")
-            console.print(f"[red]✗ Failed to save target: {e}[/red]")
-            return False
             
     def setup(self):
         """Initial setup and checks"""
         try:
+            # Check if running as root
             if not check_root():
                 console.print(Panel("[red]This tool must be run as root![/red]", border_style="red"))
-                console.print("[yellow]Please run with: sudo python3 noisematrix[/yellow]")
+                console.print("[yellow]Please run with: sudo python3 noisematrix.py[/yellow]")
                 sys.exit(1)
                 
+            # Setup signal handlers
             setup_signal_handlers(self.cleanup)
             
+            # Initialize interface manager
             self.interface_manager = InterfaceManager(self.config)
             
+            # Show startup message
             self.show_startup_info()
             
+            # Setup interface with monitor mode check
             self.interface = self.interface_manager.setup_interface()
             
             if not self.interface:
                 console.print("[red]Failed to setup network interface![/red]")
                 sys.exit(1)
                 
+            # Initialize scanner and attacker
             logger.info(f"Initializing scanner with interface: {self.interface}")
             self.scanner = WiFiScanner(self.interface, self.config)
             
             logger.info(f"Initializing attacker with interface: {self.interface}")
             self.attacker = DeauthAttacker(self.interface, self.config)
             
+            # Verify initialization
             if self.scanner is None:
                 console.print("[red]Failed to initialize scanner![/red]")
                 sys.exit(1)
@@ -165,6 +167,7 @@ class NoiseMatrix:
             self.initialized = True
             logger.info("NoiseMatrix setup complete")
             
+            # Show interface info
             self.show_interface_info()
             
         except Exception as e:
@@ -177,11 +180,13 @@ class NoiseMatrix:
     def show_startup_info(self):
         """Show startup information"""
         clear_screen()
+        # Try to import banner from launcher
         try:
             import noisematrix
             if hasattr(noisematrix, 'print_banner'):
                 noisematrix.print_banner()
         except:
+            # Fallback banner
             console.print("[cyan]NoiseMatrix by Kkaxh1[/cyan]")
         
         info_panel = Panel(
@@ -246,14 +251,12 @@ class NoiseMatrix:
                 elif choice == "5":
                     self.quick_attack()
                 elif choice == "6":
-                    self.destruction_mode()
-                elif choice == "7":
                     self.show_settings()
-                elif choice == "8":
+                elif choice == "7":
                     self.show_help()
-                elif choice == "9":
+                elif choice == "8":
                     self.show_about()
-                elif choice == "10":
+                elif choice == "9":
                     if self.confirm_exit():
                         self.cleanup()
                         break
@@ -271,6 +274,7 @@ class NoiseMatrix:
         """Display main menu with UI"""
         clear_screen()
         
+        # Create header
         header = Panel(
             "[bold cyan]NoiseMatrix[/bold cyan] [dim]by Kkaxh1[/dim]\n"
             "[dim]Professional WiFi Security Testing Tool[/dim]",
@@ -279,19 +283,20 @@ class NoiseMatrix:
         console.print(header)
         console.print()
         
+        # Create menu items with icons
         menu_items = [
             ("1", "🔍", "Scan Networks", "Scan for available WiFi networks"),
             ("2", "📋", "Saved Targets", f"View {len(self.saved_targets)} saved targets"),
             ("3", "⚔️", "Launch Attack", "Start deauth attack on target"),
             ("4", "📊", "Attack Status", "View current attack statistics"),
             ("5", "⚡", "Quick Attack", "Quick attack with last target"),
-            ("6", "💀", "Destruction Mode", "🔥 SPAWN 6 TERMINALS - MAX POWER!"),
-            ("7", "⚙️", "Settings", "Configure tool parameters"),
-            ("8", "📚", "Help", "View documentation and help"),
-            ("9", "ℹ️", "About", "About NoiseMatrix"),
-            ("10", "🚪", "Exit", "Exit and cleanup")
+            ("6", "⚙️", "Settings", "Configure tool parameters"),
+            ("7", "📚", "Help", "View documentation and help"),
+            ("8", "ℹ️", "About", "About NoiseMatrix"),
+            ("9", "🚪", "Exit", "Exit and cleanup")
         ]
         
+        # Create menu table
         menu_table = Table(show_header=False, box=box.ROUNDED, padding=(0, 2))
         menu_table.add_column("Option", style="cyan", width=6)
         menu_table.add_column("Icon", width=4)
@@ -304,6 +309,7 @@ class NoiseMatrix:
         console.print(menu_table)
         console.print()
         
+        # Show current interface status
         if self.interface and self.interface_manager:
             mode = self.interface_manager.get_current_mode(self.interface)
             status = f"[green]✓ {self.interface} ({mode})[/green]" if mode == "monitor" else f"[red]✗ {self.interface} ({mode})[/red]"
@@ -313,7 +319,7 @@ class NoiseMatrix:
         
         return Prompt.ask(
             "[cyan]Select option[/cyan]",
-           choices=["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+            choices=["1", "2", "3", "4", "5", "6", "7", "8", "9"]
         )
         
     def scan_networks(self):
@@ -326,6 +332,7 @@ class NoiseMatrix:
             
         clear_screen()
         
+        # Show scanning panel
         scan_panel = Panel(
             "[yellow]📡 Scanning for WiFi Networks[/yellow]\n"
             "[dim]This may take up to 30 seconds...[/dim]",
@@ -334,6 +341,7 @@ class NoiseMatrix:
         console.print(scan_panel)
         console.print()
         
+        # Perform scan with progress bar
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -343,9 +351,11 @@ class NoiseMatrix:
         ) as progress:
             task = progress.add_task("[cyan]Scanning networks...", total=30)
             
+            # Start scan
             try:
                 self.scan_results = self.scanner.scan(duration=30)
                 
+                # Update progress
                 for i in range(30):
                     time.sleep(1)
                     if self.scanner and self.scanner.networks:
@@ -358,6 +368,7 @@ class NoiseMatrix:
                 input("\nPress Enter to continue...")
                 return
         
+        # Show results
         self.display_scan_results()
         
     def display_scan_results(self):
@@ -367,6 +378,7 @@ class NoiseMatrix:
             input("\nPress Enter to continue...")
             return
             
+        # Create main results table
         main_table = Table(
             title="[bold green]Available Networks[/bold green]",
             box=box.ROUNDED,
@@ -381,15 +393,18 @@ class NoiseMatrix:
         main_table.add_column("Encryption", style="red", width=12)
         main_table.add_column("ESSID", style="white", width=30)
         
+        # Sort by signal strength
         sorted_networks = sorted(
             self.scanner.networks,
             key=lambda x: int(x.get('signal', '0') or '0'),
             reverse=True
         )
         
+        # Store for later use
         self.scan_results = sorted_networks
         
         for i, network in enumerate(sorted_networks[:15], 1):
+            # Color code signal strength
             signal = network.get('signal', '0')
             try:
                 signal_val = int(signal)
@@ -413,6 +428,7 @@ class NoiseMatrix:
             
         console.print(main_table)
         
+        # Show summary
         total = len(self.scanner.networks)
         encrypted = sum(1 for n in self.scanner.networks if n.get('encryption') and n['encryption'] not in ['', 'OPN'])
         
@@ -424,10 +440,14 @@ class NoiseMatrix:
         )
         console.print(summary)
         
+        # Options after scan
         console.print()
-        console.print("[1] 💾 Save results (add to targets)")
-        console.print("[2] 🎯 Select target")
-        console.print("[3] ↩️  Main menu")
+        options = Columns([
+            "[1] 💾 Save results",
+            "[2] 🎯 Select target",
+            "[3] ↩️  Main menu"
+        ])
+        console.print(options)
         console.print()
         
         choice = Prompt.ask(
@@ -436,31 +456,11 @@ class NoiseMatrix:
         )
         
         if choice == "1":
-            # Save to JSON file AND add to saved targets
             filename = self.scanner.save_results()
             if filename:
-                console.print(f"[green]✓ Results saved to {filename}[/green]")
-                
-                # Also save each network as a target
-                console.print("[yellow]Adding networks to saved targets...[/yellow]")
-                saved_count = 0
-                for network in self.scanner.networks[:10]:  # Save top 10
-                    if network.get('bssid') and len(network['bssid']) > 10:
-                        target = {
-                            'bssid': network.get('bssid'),
-                            'channel': network.get('channel', '1'),
-                            'essid': network.get('essid', 'Unknown'),
-                            'encryption': network.get('encryption', 'Unknown'),
-                            'signal': network.get('signal', '0'),
-                            'saved_at': datetime.now().isoformat()
-                        }
-                        if self.save_target(target):
-                            saved_count += 1
-                
-                console.print(f"[green]✓ Added {saved_count} networks to saved targets![/green]")
-            else:
-                console.print("[red]✗ Failed to save results[/red]")
+                console.print(f"[green]Results saved to {filename}[/green]")
             input("\nPress Enter to continue...")
+            # Return to main menu instead of scanning again
             return
             
         elif choice == "2":
@@ -468,11 +468,14 @@ class NoiseMatrix:
             if target:
                 self.configure_attack(target)
                 
+        # Choice "3" just returns to main menu
+        
     def select_target_from_list(self, networks: List[Dict]) -> Optional[Dict]:
         """Select target from network list"""
         if not networks:
             return None
             
+        # Display numbered list for selection
         console.print("\n[cyan]Select target by number:[/cyan]")
         
         for i, network in enumerate(networks[:15], 1):
@@ -549,6 +552,7 @@ class NoiseMatrix:
     def quick_attack(self):
         """Quick attack with last target"""
         if self.scan_results:
+            # Use strongest network from last scan
             target = self.scan_results[0] if self.scan_results else None
             if target:
                 console.print(f"[green]Using last scanned target: {target.get('essid')}[/green]")
@@ -556,6 +560,7 @@ class NoiseMatrix:
                 return
                 
         if self.saved_targets:
+            # Use last saved target
             target = self.saved_targets[-1]
             console.print(f"[green]Using last saved target: {target.get('essid')}[/green]")
             self.configure_attack(target)
@@ -568,6 +573,7 @@ class NoiseMatrix:
         """Configure and launch attack"""
         clear_screen()
         
+        # Attack configuration panel
         config_text = f"""
 [red]⚠️  ATTACK CONFIGURATION[/red]
 
@@ -580,12 +586,13 @@ class NoiseMatrix:
         
         console.print(Panel(config_text, border_style="red"))
         
+        # Attack parameters
         console.print("[yellow]Attack Parameters:[/yellow]")
         
         intensity = Prompt.ask(
             "  Attack intensity",
-            choices=["low", "medium", "high", "insane"],
-            default="high"
+            choices=["low", "medium", "high"],
+            default="medium"
         )
         
         duration = Prompt.ask(
@@ -593,21 +600,15 @@ class NoiseMatrix:
             default="0"
         )
         
-        # More aggressive packet rates
-        packet_rates = {"low": 500, "medium": 1500, "high": 3000, "insane": 5000}
+        packet_rates = {"low": 300, "medium": 600, "high": 1000}
         target['packet_rate'] = packet_rates[intensity]
         target['duration'] = int(duration) if duration.isdigit() else 0
         
-        # Show warning about aggressive mode
-        if intensity == "insane":
-            console.print()
-            console.print("[red]⚠️  INSANE MODE: 5000 packets/sec![/red]")
-            console.print("[yellow]This may crash your system if hardware is weak![/yellow]")
-            console.print()
-        
+        # Save option
         if Confirm.ask("[cyan]Save this target for future use?[/cyan]"):
             self.save_target(target)
             
+        # Final warning
         console.print()
         warning = Panel(
             "[red]⚠️  WARNING: This attack will disrupt the target network!\n"
@@ -625,6 +626,7 @@ class NoiseMatrix:
         """Execute the attack with monitoring"""
         clear_screen()
         
+        # Start attack
         try:
             self.attacker.start_attack(
                 target_bssid=target['bssid'],
@@ -632,6 +634,7 @@ class NoiseMatrix:
                 packet_rate=target.get('packet_rate', 600)
             )
             
+            # Attack header
             header = Panel(
                 f"[red]⚔️  ATTACK IN PROGRESS[/red]\n"
                 f"Target: {target['bssid']} | Channel: {target.get('channel', '?')}\n"
@@ -641,19 +644,24 @@ class NoiseMatrix:
             console.print(header)
             console.print()
             
+            # Monitor attack
             start_time = time.time()
             duration = target.get('duration', 0)
             
             try:
                 while self.attacker.is_running():
+                    # Calculate elapsed time
                     elapsed = int(time.time() - start_time)
                     
+                    # Check duration limit
                     if duration > 0 and elapsed >= duration:
                         console.print("\n[yellow]Attack duration reached[/yellow]")
                         break
                     
+                    # Get status
                     status = self.attacker.get_status()
                     
+                    # Create status display
                     status_table = Table(show_header=False, box=box.SIMPLE)
                     status_table.add_column("Metric", style="cyan")
                     status_table.add_column("Value", style="white")
@@ -666,12 +674,14 @@ class NoiseMatrix:
                         remaining = duration - elapsed
                         status_table.add_row("Time Remaining", f"[blue]{remaining}s[/blue]")
                     
+                    # Clear and update display
                     console.clear()
                     console.print(header)
                     console.print()
                     console.print(status_table)
                     console.print()
                     
+                    # Show packet rate graph
                     self.show_packet_graph(status['packets_sent'], elapsed)
                     
                     time.sleep(1)
@@ -680,8 +690,10 @@ class NoiseMatrix:
                 console.print("\n[yellow]Attack interrupted by user[/yellow]")
                 
             finally:
+                # Always stop the attack properly
                 self.attacker.stop_attack()
                 
+            # Show final statistics
             self.show_attack_summary(target, int(time.time() - start_time))
             
         except Exception as e:
@@ -692,18 +704,19 @@ class NoiseMatrix:
         
     def show_packet_graph(self, packets: int, elapsed: int):
         """Show simple packet rate graph"""
+        # Calculate rate (packets per second)
         rate = packets // max(1, elapsed)
         
-        max_rate = 5000
+        # Create bar graph
+        max_rate = 1000
         bar_length = min(50, int((rate / max_rate) * 50))
         bar = "█" * bar_length
         
-        if rate < 500:
+        # Color code based on rate
+        if rate < 300:
             color = "green"
-        elif rate < 1500:
+        elif rate < 600:
             color = "yellow"
-        elif rate < 3000:
-            color = "orange"
         else:
             color = "red"
             
@@ -749,44 +762,7 @@ class NoiseMatrix:
             console.print("[green]Attack stopped[/green]")
             
         input("\nPress Enter to continue...")
-
-    def destruction_mode(self):
-        """Launch destruction mode with multiple terminals"""
-        if not self.scan_results:
-            console.print("[yellow]No scan results available. Please scan networks first.[/yellow]")
-            if Confirm.ask("[cyan]Scan networks now?[/cyan]"):
-                self.scan_networks()
-            else:
-                return
         
-        target = self.select_target_from_list(self.scan_results)
-        if not target:
-            console.print("[red]No target selected![/red]")
-            return
-            
-        console.print()
-        warning = Panel(
-            "[red]⚠️  DESTRUCTION MODE WARNING[/red]\n"
-            "[yellow]This will open 6 terminals with simultaneous attacks\n"
-            "Will use: aireplay-ng, mdk3 (x2), beacon flood, probe flood, channel hopper\n"
-            "[red]This is EXTREMELY aggressive and may crash your system![/red]\n"
-            "[yellow]Only use against networks you own or have permission to test![/yellow]",
-            border_style="red"
-        )
-        console.print(warning)
-        console.print()
-        
-        if Confirm.ask("[red]Are you sure you want to launch DESTRUCTION MODE?[/red]"):
-            destruction = DestructionMode(self.interface, self.config)
-            channel = int(target.get('channel', 1))
-            bssid = target.get('bssid')
-            
-            console.print(f"[cyan]Target: {bssid} | Channel: {channel}[/cyan]")
-            console.print("[yellow]Launching in 3 seconds...[/yellow]")
-            time.sleep(3)
-            
-            destruction.launch_destruction(bssid, channel)        
-
     def show_settings(self):
         """Display and modify settings"""
         clear_screen()
@@ -801,6 +777,7 @@ class NoiseMatrix:
         settings_table.add_column("Value", style="green")
         settings_table.add_column("Description", style="dim white")
         
+        # Add settings with descriptions
         settings = [
             ("monitor_mode", self.config.get('monitor_mode', 'true'), "Auto-enable monitor mode"),
             ("scan_timeout", self.config.get('scan_timeout', '30'), "Scan duration in seconds"),
@@ -835,10 +812,9 @@ class NoiseMatrix:
 4. [green]Monitor Attack[/green] - Watch real-time statistics
 
 [yellow]⚡ ATTACK INTENSITIES:[/yellow]
-• [dim]Low (500 pkts/s)[/dim] - Basic testing
-• [yellow]Medium (1500 pkts/s)[/yellow] - Balanced performance
-• [red]High (3000 pkts/s)[/red] - Aggressive disruption
-• [red blink]INSANE (5000 pkts/s)[/red blink] - Maximum power!
+• [dim]Low (300 pkts/s)[/dim] - Less noticeable, good for testing
+• [yellow]Medium (600 pkts/s)[/yellow] - Balanced performance
+• [red]High (1000 pkts/s)[/red] - Maximum disruption
 
 [yellow]🎯 TARGET SELECTION:[/yellow]
 • From live scan results
@@ -885,9 +861,6 @@ Perform deauthentication attacks to test network security.
 • Real-time attack monitoring
 • Packet rate visualization
 • Saved targets database
-• MAC Spoofing
-• Channel Hopping
-• INSANE attack mode (5000 pkts/s)
 
 [yellow]GitHub:[/yellow] https://github.com/Kkaxh1/NoiseMatrix
 [yellow]License:[/yellow] MIT (Educational Use Only)
@@ -922,21 +895,25 @@ Perform deauthentication attacks to test network security.
         
     def cleanup(self):
         """Cleanup before exit"""
+        # Prevent multiple cleanup calls
         if hasattr(self, '_cleaned_up') and self._cleaned_up:
             return
             
         console.print("\n[yellow]Cleaning up...[/yellow]")
         
+        # Stop any ongoing attack
         if self.attacker:
             try:
                 self.attacker.stop_attack()
             except Exception as e:
                 logger.error(f"Error stopping attack: {e}")
         
+        # Handle monitor mode
         if self.interface_manager and self.interface_manager.interface:
             mode = self.interface_manager.get_current_mode(self.interface_manager.interface)
             if mode == "monitor":
                 console.print()
+                # Only ask if we haven't already asked
                 if not hasattr(self, '_asked_monitor') or not self._asked_monitor:
                     self._asked_monitor = True
                     if Confirm.ask("[yellow]Disable monitor mode before exit?[/yellow]", default=True):
@@ -948,6 +925,7 @@ Perform deauthentication attacks to test network security.
                     else:
                         console.print("[red]Warning: Interface left in monitor mode[/red]")
                 else:
+                    # Already asked, just disable
                     try:
                         self.interface_manager.disable_monitor_mode()
                     except:
@@ -961,6 +939,7 @@ Perform deauthentication attacks to test network security.
         logger.info("NoiseMatrix shutdown complete")
         self._cleaned_up = True
         
+        # Final message
         console.print()
         goodbye = Panel(
             "[green]Thank you for using NoiseMatrix![/green]\n"
@@ -990,6 +969,7 @@ def main():
     
     args = parser.parse_args()
     
+    # Create and run application
     try:
         app = NoiseMatrix(args.config)
         app.setup()

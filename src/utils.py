@@ -1,7 +1,3 @@
-"""
-Utility functions
-"""
-
 import os
 import sys
 import subprocess
@@ -15,56 +11,53 @@ from datetime import datetime
 console = Console()
 
 def check_root() -> bool:
-    """Check if script is running as root"""
     return os.geteuid() == 0
 
 def load_config(config_path: Optional[str] = None, force_default: bool = False) -> Dict[str, Any]:
-    """Load configuration from file"""
     import configparser
+    
     config = configparser.ConfigParser()
     
     if force_default:
         config_path = "config/default.config"
-        
+    
     if config_path and os.path.exists(config_path):
-        config.read(config_path)
-    else:
-        # Check alternative locations
-        alt_paths = [
-            "/etc/wifi-jammer/default.config",
-            os.path.expanduser("~/.config/wifi-jammer/config")
-        ]
-        for path in alt_paths:
-            if os.path.exists(path):
+        try:
+            config.read(config_path)
+            if 'DEFAULT' in config:
+                return {k: v for k, v in config['DEFAULT'].items()}
+        except:
+            pass
+    
+    alt_paths = [
+        "config/default.config",
+        "/etc/wifi-jammer/default.config",
+        os.path.expanduser("~/.config/wifi-jammer/config")
+    ]
+    
+    for path in alt_paths:
+        if os.path.exists(path):
+            try:
                 config.read(path)
-                break
-        else:
-            # Return default config
-            config['DEFAULT'] = {
-                'monitor_mode': 'true',
-                'scan_timeout': '30',
-                'packet_rate': '1000',
-                'log_level': 'INFO'
-            }
+                if 'DEFAULT' in config:
+                    return {k: v for k, v in config['DEFAULT'].items()}
+            except:
+                continue
     
-    # Convert to dict for easier access
-    config_dict = {}
-    if 'DEFAULT' in config:
-        for key, value in config['DEFAULT'].items():
-            config_dict[key] = value
-    
-    return config_dict
+    return {
+        'monitor_mode': 'true',
+        'scan_timeout': '30',
+        'packet_rate': '1000',
+        'log_level': 'INFO'
+    }
 
 def validate_interface(interface: str) -> bool:
-    """Validate network interface exists"""
     return os.path.exists(f"/sys/class/net/{interface}")
 
 def clear_screen():
-    """Clear terminal screen"""
     os.system('clear' if os.name == 'posix' else 'cls')
 
 def print_banner():
-    """Print application banner"""
     banner = """
     ╔══════════════════════════════════════╗
     ║         WiFi Jammer v1.0.0           ║
@@ -75,7 +68,6 @@ def print_banner():
     console.print(Panel(banner, style="cyan"))
 
 def run_command(cmd: List[str]) -> subprocess.CompletedProcess:
-    """Run shell command safely"""
     try:
         result = subprocess.run(
             cmd,
@@ -94,7 +86,6 @@ def run_command(cmd: List[str]) -> subprocess.CompletedProcess:
         sys.exit(1)
 
 def setup_signal_handlers(cleanup_func):
-    """Setup signal handlers for clean exit"""
     cleanup_called = False
     
     def signal_handler(sig, frame):
@@ -114,13 +105,11 @@ def setup_signal_handlers(cleanup_func):
     signal.signal(signal.SIGTERM, signal_handler)
 
 def parse_airodump_output(filename: str) -> List[Dict[str, Any]]:
-    """Parse airodump-ng output file"""
     networks = []
     try:
         with open(filename, 'r') as f:
             content = f.read()
         
-        # Basic parsing logic
         lines = content.split('\n')
         for line in lines:
             if 'BSSID' in line or 'Station' in line:
@@ -141,13 +130,11 @@ def parse_airodump_output(filename: str) -> List[Dict[str, Any]]:
     return networks
 
 def format_mac(mac: str) -> str:
-    """Format MAC address with colons"""
     mac = re.sub(r'[^a-fA-F0-9]', '', mac)
     if len(mac) == 12:
         return ':'.join(mac[i:i+2].upper() for i in range(0, 12, 2))
     return mac
 
 def validate_mac(mac: str) -> bool:
-    """Validate MAC address format"""
     pattern = r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
     return bool(re.match(pattern, mac))
